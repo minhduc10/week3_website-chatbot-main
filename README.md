@@ -63,11 +63,13 @@ A modern AI chatbot with OpenAI integration, built with Node.js backend and vani
 website-chatbot/
 ├── server.js          # Node.js backend server
 ├── package.json       # Dependencies and scripts
-├── .env              # Environment variables (API keys)
-├── index.html        # Frontend HTML
-├── script.js         # Frontend JavaScript
-├── styles.css        # Frontend CSS
-└── README.md         # This file
+├── .env               # Environment variables (API keys)
+├── api/               # Vercel serverless entrypoints
+├── public/
+│   ├── index.html     # Frontend HTML (served statically)
+│   ├── script.js      # Frontend JavaScript
+│   └── styles.css     # Frontend CSS
+└── README.md          # This file
 ```
 
 ## Configuration
