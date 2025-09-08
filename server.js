@@ -189,15 +189,17 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📝 Make sure to set your OPENAI_API_KEY in the .env file`);
-  
-  // Check if API key is set
-  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
-    console.log('⚠️  WARNING: Please set your OPENAI_API_KEY in the .env file');
-  }
-});
+// Start server (only when not running on Vercel serverless)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`📝 Make sure to set your OPENAI_API_KEY in the .env file`);
+    
+    // Check if API key is set
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
+      console.log('⚠️  WARNING: Please set your OPENAI_API_KEY in the .env file');
+    }
+  });
+}
 
 module.exports = app;

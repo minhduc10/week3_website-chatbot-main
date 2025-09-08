@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "vercel-build": "echo 'Vercel will use api/index.js'",
     "dev": "nodemon server.js"
   },
   "dependencies": {

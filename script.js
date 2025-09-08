@@ -5,7 +5,10 @@ class Chatbot {
         this.chatMessages = document.getElementById('chatMessages');
         this.typingIndicator = document.getElementById('typingIndicator');
         this.sessionId = null;
-        this.apiBaseUrl = 'http://localhost:3000/api';
+        // Choose API base URL based on environment
+        const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+        // If on Vercel/production, call the same origin `api` routes
+        this.apiBaseUrl = isLocalhost ? 'http://localhost:3000/api' : '/api';
         
         this.init();
     }
