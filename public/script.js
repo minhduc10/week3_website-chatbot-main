@@ -1,3 +1,23 @@
+function escapeHtml(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function linkify(text) {
+    const escaped = escapeHtml(text || '');
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+    return escaped
+        .replace(urlRegex, (url) => {
+            const href = url.startsWith('http') ? url : `http://${url}`;
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+        })
+        .replace(/\n/g, '<br>');
+}
+
 class Chatbot {
     constructor() {
         this.messageInput = document.getElementById('messageInput');
@@ -5,7 +25,8 @@ class Chatbot {
         this.chatMessages = document.getElementById('chatMessages');
         this.typingIndicator = document.getElementById('typingIndicator');
         this.sessionId = null;
-        const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+        const isLocalhost = typeof window !== 'undefined' &&
+            (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
         this.apiBaseUrl = isLocalhost ? 'http://localhost:3000/api' : '/api';
         this.init();
     }
@@ -47,7 +68,7 @@ class Chatbot {
         const content = document.createElement('div');
         content.className = 'message-content';
         const messageText = document.createElement('p');
-        messageText.textContent = text;
+        messageText.innerHTML = linkify(text);
         content.appendChild(messageText);
         const time = document.createElement('span');
         time.className = 'message-time';
@@ -111,9 +132,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendButton = document.getElementById('sendButton');
     messageInput.addEventListener('input', () => { sendButton.disabled = !messageInput.value.trim(); });
     const sampleQuestions = [
-        "What can you help me with?",
-        "Tell me about yourself",
-        "How does this work?",
+        "Địa chỉ công ty bạn ở đâu?",
+        "Tôi có thể liên hệ với bạn qua đâu?",
+        "Địa chỉ công ty bạn ở đâu?",
         "What are your capabilities?"
     ];
     const suggestionsContainer = document.createElement('div');

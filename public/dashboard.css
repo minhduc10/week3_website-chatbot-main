@@ -1,0 +1,40 @@
+:root {
+  --primary: #667eea;
+  --primary2: #764ba2;
+  --text: #2d3748;
+}
+
+.dashboard-container { max-width: 1100px; margin: 30px auto; background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.06); overflow: hidden; }
+.dashboard-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary2) 100%); color: #fff; }
+.dashboard-header h2 { margin: 0; }
+.btn { background: #fff; color: var(--primary2); padding: 8px 14px; border-radius: 10px; text-decoration: none; border: none; cursor: pointer; }
+.btn:hover { filter: brightness(0.95); }
+
+.dashboard-main { display: grid; grid-template-columns: 320px 1fr; min-height: 520px; }
+
+.session-list { border-right: 1px solid #eceff5; background: #fafbff; }
+.session-list-header { display: flex; gap: 8px; align-items: center; padding: 12px; border-bottom: 1px solid #eceff5; }
+.session-list-header input { flex: 1; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; }
+.session-list ul { list-style: none; margin: 0; padding: 8px; max-height: 520px; overflow: auto; }
+.session-item { padding: 10px 12px; border-radius: 10px; margin: 6px 0; cursor: pointer; border: 1px solid transparent; }
+.session-item:hover { background: #f1f4ff; border-color: #e0e7ff; }
+.session-item.active { background: #e9ecff; border-color: #c7d2fe; }
+.session-id { font-weight: 600; color: var(--text); }
+.session-meta { font-size: 12px; color: #718096; }
+
+.conversation-detail { padding: 16px; display: flex; flex-direction: column; }
+.detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.detail-header .meta { color: #718096; margin-top: 4px; }
+.messages { background: #f7fafc; border-radius: 12px; padding: 12px; height: 470px; overflow: auto; border: 1px solid #edf2f7; }
+.msg { background: #fff; border: 1px solid #edf2f7; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.msg.user { border-left: 3px solid #4299e1; }
+.msg.assistant { border-left: 3px solid #805ad5; }
+.msg .role { font-size: 12px; color: #718096; margin-bottom: 4px; }
+.msg .text { white-space: pre-wrap; }
+
+@media (max-width: 900px) {
+  .dashboard-main { grid-template-columns: 1fr; }
+  .session-list { border-right: none; border-bottom: 1px solid #eceff5; }
+}
+
+

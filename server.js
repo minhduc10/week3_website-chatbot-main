@@ -3,6 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const OpenAI = require('openai');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
 // Load environment variables
 dotenv.config();
@@ -15,35 +16,109 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Initialize Supabase (server-side with service role key)
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let supabase = null;
+if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+} else {
+  console.warn('⚠️  SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set. Conversations will not be persisted.');
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
 // Serve static files from public directory (works locally and on Vercel)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// In-memory conversation storage
+// In-memory conversation cache (optional) to reduce round trips
 const conversations = {};
+
+const SYSTEM_PROMPT = 'Bạn là một nhân viên phòng kỹ thuật của công ty TST Việt Nam.'+
+'bạn hãy trả lời một cách thân thiện, hữu ích, ngắn gọn, chính xác về hiểu biết của bạn về lĩnh vực vòng bi và các thông số kỹ thuật của vòng bi' +
+'Tên công ty là Công ty CP Thương mại và Công nghệ TST Việt Nam'+
+'Số 11 ngõ 68 đường Trung Kính, Phường Yên Hòa, Hà Nội'+
+'Địa chỉ website là www.vongbicongnghiep.vn và www.tstvietnam.vn Email kinhdoanht@tstvietnam.vn'+
+'Nhân viên kinh doanh Mr Tạo là 0988.920.565 Mr Dũng: 0989.063.460'+
+'sản phẩm 6210-2Z sẽ có đường link liên kết là https://vongbicongnghiep.vn/san-pham/6210-2z/ tương tự các sản phẩm khác cũng có format liên kết như vậy';
 
 // Generate a unique session ID
 function generateSessionId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
-// Initialize conversation for a session
-function initializeConversation(sessionId) {
-  if (!conversations[sessionId]) {
+// Initialize or fetch conversation for a session (from Supabase, with in-memory cache)
+async function initializeConversation(sessionId) {
+  // Serve from cache if available
+  if (conversations[sessionId]) {
+    return conversations[sessionId];
+  }
+
+  const nowIso = new Date().toISOString();
+
+  if (!supabase) {
+    // Fallback to memory-only when Supabase not configured
     conversations[sessionId] = {
       messages: [
-        {
-          role: 'system',
-          content: 'You are a helpful AI assistant. Be friendly, informative, and concise in your responses.'
-        }
+        { role: 'system', content: SYSTEM_PROMPT }
       ],
-      createdAt: new Date().toISOString(),
-      lastActivity: new Date().toISOString()
+      createdAt: nowIso,
+      lastActivity: nowIso
     };
+    return conversations[sessionId];
   }
+
+  // Try to fetch from Supabase
+  const { data, error } = await supabase
+    .from('conversation')
+    .select('conversation_id, created_at, messages')
+    .eq('conversation_id', sessionId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Supabase fetch error:', error);
+  }
+
+  if (!data) {
+    // Insert a new row
+    const initialMessages = [
+      { role: 'system', content: SYSTEM_PROMPT }
+    ];
+    const { error: insertError } = await supabase
+      .from('conversation')
+      .insert({ conversation_id: sessionId, messages: initialMessages });
+    if (insertError) {
+      console.error('Supabase insert error:', insertError);
+    }
+    conversations[sessionId] = {
+      messages: initialMessages,
+      createdAt: nowIso,
+      lastActivity: nowIso
+    };
+    return conversations[sessionId];
+  }
+
+  // Normalize and cache
+  conversations[sessionId] = {
+    messages: Array.isArray(data.messages) ? data.messages : [],
+    createdAt: data.created_at || nowIso,
+    lastActivity: nowIso
+  };
   return conversations[sessionId];
+}
+
+async function persistConversation(sessionId) {
+  if (!supabase) return; // skip when not configured
+  const conversation = conversations[sessionId];
+  if (!conversation) return;
+  const { error } = await supabase
+    .from('conversation')
+    .update({ messages: conversation.messages })
+    .eq('conversation_id', sessionId);
+  if (error) {
+    console.error('Supabase update error:', error);
+  }
 }
 
 // API Routes
@@ -54,14 +129,18 @@ app.get('/api/health', (req, res) => {
 });
 
 // Get or create a new session
-app.post('/api/session', (req, res) => {
-  const sessionId = generateSessionId();
-  initializeConversation(sessionId);
-  
-  res.json({ 
-    sessionId,
-    message: 'Session created successfully'
-  });
+app.post('/api/session', async (req, res) => {
+  try {
+    const sessionId = generateSessionId();
+    await initializeConversation(sessionId);
+    if (supabase) {
+      // ensure row exists (initializeConversation already inserted if missing)
+    }
+    res.json({ sessionId, message: 'Session created successfully' });
+  } catch (e) {
+    console.error('Session init error:', e);
+    res.status(500).json({ error: 'Failed to create session' });
+  }
 });
 
 // Chat endpoint
@@ -76,7 +155,7 @@ app.post('/api/chat', async (req, res) => {
     }
 
     // Initialize or get conversation
-    const conversation = initializeConversation(sessionId);
+    const conversation = await initializeConversation(sessionId);
     
     // Add user message to conversation
     conversation.messages.push({
@@ -108,6 +187,9 @@ app.post('/api/chat', async (req, res) => {
       conversation.messages = conversation.messages.slice(-20);
     }
 
+    // Persist to Supabase
+    await persistConversation(sessionId);
+
     res.json({
       response: aiResponse,
       sessionId,
@@ -135,16 +217,12 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // Get conversation history
-app.get('/api/conversation/:sessionId', (req, res) => {
+app.get('/api/conversation/:sessionId', async (req, res) => {
   const { sessionId } = req.params;
-  const conversation = conversations[sessionId];
-  
+  const conversation = await initializeConversation(sessionId);
   if (!conversation) {
-    return res.status(404).json({ 
-      error: 'Conversation not found' 
-    });
+    return res.status(404).json({ error: 'Conversation not found' });
   }
-
   res.json({
     sessionId,
     messages: conversation.messages.filter(msg => msg.role !== 'system'),
@@ -154,32 +232,59 @@ app.get('/api/conversation/:sessionId', (req, res) => {
 });
 
 // Clear conversation
-app.delete('/api/conversation/:sessionId', (req, res) => {
+app.delete('/api/conversation/:sessionId', async (req, res) => {
   const { sessionId } = req.params;
-  
-  if (conversations[sessionId]) {
-    delete conversations[sessionId];
-    res.json({ message: 'Conversation cleared successfully' });
-  } else {
-    res.status(404).json({ error: 'Conversation not found' });
+  delete conversations[sessionId];
+  if (supabase) {
+    const { error } = await supabase
+      .from('conversation')
+      .delete()
+      .eq('conversation_id', sessionId);
+    if (error) {
+      console.error('Supabase delete error:', error);
+      return res.status(500).json({ error: 'Failed to delete conversation' });
+    }
   }
+  res.json({ message: 'Conversation cleared successfully' });
 });
 
 // Get all active sessions (for debugging)
-app.get('/api/sessions', (req, res) => {
-  const sessionList = Object.keys(conversations).map(sessionId => ({
-    sessionId,
-    messageCount: conversations[sessionId].messages.length - 1, // Exclude system message
-    createdAt: conversations[sessionId].createdAt,
-    lastActivity: conversations[sessionId].lastActivity
+app.get('/api/sessions', async (req, res) => {
+  if (!supabase) {
+    const sessionList = Object.keys(conversations).map(sessionId => ({
+      sessionId,
+      messageCount: (conversations[sessionId].messages?.length || 1) - 1,
+      createdAt: conversations[sessionId].createdAt,
+      lastActivity: conversations[sessionId].lastActivity
+    }));
+    return res.json({ sessions: sessionList });
+  }
+
+  const { data, error } = await supabase
+    .from('conversation')
+    .select('conversation_id, created_at, messages')
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('Supabase list sessions error:', error);
+    return res.status(500).json({ error: 'Failed to list sessions' });
+  }
+  const sessionList = (data || []).map(row => ({
+    sessionId: row.conversation_id,
+    messageCount: (row.messages?.length || 1) - 1,
+    createdAt: row.created_at,
+    lastActivity: row.created_at
   }));
-  
   res.json({ sessions: sessionList });
 });
 
 // Serve the main HTML file
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Serve dashboard page
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
 // Error handling middleware

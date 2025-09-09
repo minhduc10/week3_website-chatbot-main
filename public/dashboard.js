@@ -1,0 +1,109 @@
+class Dashboard {
+  constructor() {
+    this.apiBaseUrl = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'http://localhost:3000/api' : '/api';
+    this.sessionsEl = document.getElementById('sessions');
+    this.messagesEl = document.getElementById('messages');
+    this.selectedSessionEl = document.getElementById('selectedSession');
+    this.selectedMetaEl = document.getElementById('selectedMeta');
+    this.searchInput = document.getElementById('searchInput');
+    this.refreshBtn = document.getElementById('refreshBtn');
+
+    this.currentSessionId = null;
+
+    this.attachEvents();
+    this.loadSessions();
+  }
+
+  attachEvents() {
+    this.searchInput.addEventListener('input', () => this.filterSessions());
+    this.refreshBtn.addEventListener('click', () => {
+      if (this.currentSessionId) this.loadConversation(this.currentSessionId);
+      else this.loadSessions();
+    });
+  }
+
+  async loadSessions() {
+    this.sessions = [];
+    this.sessionsEl.innerHTML = '<li>Loading...</li>';
+    try {
+      const res = await fetch(`${this.apiBaseUrl}/sessions`);
+      const data = await res.json();
+      this.sessions = data.sessions || [];
+      this.renderSessions();
+    } catch (e) {
+      this.sessionsEl.innerHTML = '<li>Failed to load sessions</li>';
+      console.error(e);
+    }
+  }
+
+  renderSessions() {
+    const q = this.searchInput.value?.toLowerCase() || '';
+    const filtered = this.sessions.filter(s => (s.sessionId || '').toLowerCase().includes(q));
+    this.sessionsEl.innerHTML = '';
+    filtered.forEach(s => {
+      const li = document.createElement('li');
+      li.className = `session-item ${this.currentSessionId === s.sessionId ? 'active' : ''}`;
+      li.innerHTML = `
+        <div class="session-id">${s.sessionId}</div>
+        <div class="session-meta">${this.formatTime(s.createdAt)} • ${s.messageCount} messages</div>
+      `;
+      li.addEventListener('click', () => {
+        this.currentSessionId = s.sessionId;
+        this.renderSessions();
+        this.loadConversation(s.sessionId);
+      });
+      this.sessionsEl.appendChild(li);
+    });
+  }
+
+  async loadConversation(sessionId) {
+    this.selectedSessionEl.textContent = sessionId;
+    this.selectedMetaEl.textContent = 'Loading...';
+    this.messagesEl.innerHTML = '';
+    try {
+      const res = await fetch(`${this.apiBaseUrl}/conversation/${sessionId}`);
+      const data = await res.json();
+      const msgs = data.messages || [];
+      this.selectedMetaEl.textContent = `Created: ${this.formatTime(data.createdAt)} • Last activity: ${this.formatTime(data.lastActivity)}`;
+      msgs.forEach(m => this.messagesEl.appendChild(this.renderMessage(m)));
+      this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+    } catch (e) {
+      this.selectedMetaEl.textContent = 'Failed to load conversation';
+      console.error(e);
+    }
+  }
+
+  renderMessage(m) {
+    const div = document.createElement('div');
+    div.className = `msg ${m.role}`;
+    div.innerHTML = `
+      <div class="role">${m.role}</div>
+      <div class="text"></div>
+    `;
+    div.querySelector('.text').innerHTML = this.linkify(m.content);
+    return div;
+  }
+
+  filterSessions() {
+    this.renderSessions();
+  }
+
+  formatTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleString();
+  }
+
+  linkify(text) {
+    const escaped = (text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;');
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+    return escaped.replace(urlRegex, (url) => {
+      const href = url.startsWith('http') ? url : `http://${url}`;
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+    }).replace(/\n/g, '<br>');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => new Dashboard());
+
+
