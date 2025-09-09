@@ -132,8 +132,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendButton = document.getElementById('sendButton');
     messageInput.addEventListener('input', () => { sendButton.disabled = !messageInput.value.trim(); });
     const sampleQuestions = [
-        "Địa chỉ công ty bạn ở đâu?",
-        "Tôi có thể liên hệ với bạn qua đâu?",
+        "Tôi cần hỗ trợ về sản phẩm SKF",
+        "Tôi cần hỗ trợ về hộp số",
         "Địa chỉ công ty bạn ở đâu?",
         "What are your capabilities?"
     ];

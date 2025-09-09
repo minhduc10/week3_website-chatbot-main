@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const OpenAI = require('openai');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
 
 // Load environment variables
 dotenv.config();
@@ -35,13 +36,18 @@ app.use(express.static(path.join(__dirname, 'public')));
 // In-memory conversation cache (optional) to reduce round trips
 const conversations = {};
 
-const SYSTEM_PROMPT = 'Bạn là một nhân viên phòng kỹ thuật của công ty TST Việt Nam.'+
-'bạn hãy trả lời một cách thân thiện, hữu ích, ngắn gọn, chính xác về hiểu biết của bạn về lĩnh vực vòng bi và các thông số kỹ thuật của vòng bi' +
-'Tên công ty là Công ty CP Thương mại và Công nghệ TST Việt Nam'+
-'Số 11 ngõ 68 đường Trung Kính, Phường Yên Hòa, Hà Nội'+
-'Địa chỉ website là www.vongbicongnghiep.vn và www.tstvietnam.vn Email kinhdoanht@tstvietnam.vn'+
-'Nhân viên kinh doanh Mr Tạo là 0988.920.565 Mr Dũng: 0989.063.460'+
-'sản phẩm 6210-2Z sẽ có đường link liên kết là https://vongbicongnghiep.vn/san-pham/6210-2z/ tương tự các sản phẩm khác cũng có format liên kết như vậy';
+let SYSTEM_PROMPT = '';
+try {
+  const promptPath = path.join(__dirname, 'system_promt_tst.txt');
+  SYSTEM_PROMPT = fs.readFileSync(promptPath, 'utf8').trim();
+  if (!SYSTEM_PROMPT) {
+    console.warn('⚠️  system_promt_tst.txt is empty. Using minimal default prompt.');
+    SYSTEM_PROMPT = 'You are a helpful assistant.';
+  }
+} catch (e) {
+  console.warn('⚠️  Unable to read system_promt_tst.txt. Using fallback prompt.', e.message);
+  SYSTEM_PROMPT = 'You are a helpful assistant.';
+}
 
 // Generate a unique session ID
 function generateSessionId() {
@@ -81,16 +87,9 @@ async function initializeConversation(sessionId) {
   }
 
   if (!data) {
-    // Insert a new row
-    const initialMessages = [
-      { role: 'system', content: SYSTEM_PROMPT }
-    ];
-    const { error: insertError } = await supabase
-      .from('conversation')
-      .insert({ conversation_id: sessionId, messages: initialMessages });
-    if (insertError) {
-      console.error('Supabase insert error:', insertError);
-    }
+    // Do NOT insert yet. Only create in-memory conversation;
+    // we will persist to Supabase on first user message.
+    const initialMessages = [{ role: 'system', content: SYSTEM_PROMPT }];
     conversations[sessionId] = {
       messages: initialMessages,
       createdAt: nowIso,
@@ -114,8 +113,10 @@ async function persistConversation(sessionId) {
   if (!conversation) return;
   const { error } = await supabase
     .from('conversation')
-    .update({ messages: conversation.messages })
-    .eq('conversation_id', sessionId);
+    .upsert(
+      { conversation_id: sessionId, messages: conversation.messages },
+      { onConflict: 'conversation_id' }
+    );
   if (error) {
     console.error('Supabase update error:', error);
   }
