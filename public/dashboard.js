@@ -1,6 +1,9 @@
 class Dashboard {
   constructor() {
-    this.apiBaseUrl = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'http://localhost:3000/api' : '/api';
+    const isLocal = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+    // If you deploy frontend on a different domain than backend, set PROD_API_BASE env via HTML or hardcode here
+    const prodBase = window.PROD_API_BASE || '/api';
+    this.apiBaseUrl = isLocal ? 'http://localhost:3000/api' : prodBase;
     this.sessionsEl = document.getElementById('sessions');
     this.messagesEl = document.getElementById('messages');
     this.selectedSessionEl = document.getElementById('selectedSession');
@@ -29,6 +32,10 @@ class Dashboard {
     this.sessionsEl.innerHTML = '<li>Loading...</li>';
     try {
       const res = await fetch(`${this.apiBaseUrl}/sessions`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Sessions request failed: ${res.status} ${text.slice(0, 120)}`);
+      }
       const data = await res.json();
       this.sessions = data.sessions || [];
       this.renderSessions();
@@ -44,7 +51,10 @@ class Dashboard {
     if (!ok) return;
     try {
       const res = await fetch(`${this.apiBaseUrl}/conversation/${this.currentSessionId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Delete failed');
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Delete failed: ${res.status} ${text.slice(0, 120)}`);
+      }
       // Clear selection and reload the sessions list
       this.currentSessionId = null;
       this.selectedSessionEl.textContent = 'Select a session';
@@ -83,6 +93,10 @@ class Dashboard {
     this.messagesEl.innerHTML = '';
     try {
       const res = await fetch(`${this.apiBaseUrl}/conversation/${sessionId}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Conversation request failed: ${res.status} ${text.slice(0, 120)}`);
+      }
       const data = await res.json();
       const msgs = data.messages || [];
       this.selectedMetaEl.textContent = `Created: ${this.formatTime(data.createdAt)} • Last activity: ${this.formatTime(data.lastActivity)}`;
