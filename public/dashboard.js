@@ -1,8 +1,10 @@
 class Dashboard {
   constructor() {
     const isLocal = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
-    // If you deploy frontend on a different domain than backend, set PROD_API_BASE env via HTML or hardcode here
-    const prodBase = window.PROD_API_BASE || '/api';
+    const prodBaseRaw = (window.PROD_API_BASE || '/api').trim();
+    const prodBase = prodBaseRaw.startsWith('http')
+      ? prodBaseRaw
+      : (prodBaseRaw.startsWith('/') ? `${location.origin}${prodBaseRaw}` : `${location.origin}/${prodBaseRaw}`);
     this.apiBaseUrl = isLocal ? 'http://localhost:3000/api' : prodBase;
     this.sessionsEl = document.getElementById('sessions');
     this.messagesEl = document.getElementById('messages');

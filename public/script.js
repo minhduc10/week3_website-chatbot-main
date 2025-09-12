@@ -27,7 +27,11 @@ class Chatbot {
         this.sessionId = null;
         const isLocalhost = typeof window !== 'undefined' &&
             (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-        this.apiBaseUrl = isLocalhost ? 'http://localhost:3000/api' : '/api';
+        const prodBaseRaw = (window.PROD_API_BASE || '/api').trim();
+        const prodBase = prodBaseRaw.startsWith('http')
+            ? prodBaseRaw
+            : (prodBaseRaw.startsWith('/') ? `${location.origin}${prodBaseRaw}` : `${location.origin}/${prodBaseRaw}`);
+        this.apiBaseUrl = isLocalhost ? 'http://localhost:3000/api' : prodBase;
         this.init();
     }
     async init() {
