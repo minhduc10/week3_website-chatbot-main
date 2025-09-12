@@ -7,6 +7,7 @@ class Dashboard {
     this.selectedMetaEl = document.getElementById('selectedMeta');
     this.searchInput = document.getElementById('searchInput');
     this.refreshBtn = document.getElementById('refreshBtn');
+    this.deleteBtn = document.getElementById('deleteBtn');
 
     this.currentSessionId = null;
 
@@ -20,6 +21,7 @@ class Dashboard {
       if (this.currentSessionId) this.loadConversation(this.currentSessionId);
       else this.loadSessions();
     });
+    this.deleteBtn.addEventListener('click', () => this.handleDelete());
   }
 
   async loadSessions() {
@@ -32,6 +34,25 @@ class Dashboard {
       this.renderSessions();
     } catch (e) {
       this.sessionsEl.innerHTML = '<li>Failed to load sessions</li>';
+      console.error(e);
+    }
+  }
+
+  async handleDelete() {
+    if (!this.currentSessionId) return;
+    const ok = confirm('Bạn có chắc muốn xóa cuộc thoại này? Hành động này không thể hoàn tác.');
+    if (!ok) return;
+    try {
+      const res = await fetch(`${this.apiBaseUrl}/conversation/${this.currentSessionId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      // Clear selection and reload the sessions list
+      this.currentSessionId = null;
+      this.selectedSessionEl.textContent = 'Select a session';
+      this.selectedMetaEl.textContent = '';
+      this.messagesEl.innerHTML = '';
+      await this.loadSessions();
+    } catch (e) {
+      alert('Xóa cuộc thoại thất bại. Vui lòng thử lại.');
       console.error(e);
     }
   }

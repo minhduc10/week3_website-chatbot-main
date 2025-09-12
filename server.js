@@ -169,7 +169,7 @@ app.post('/api/chat', async (req, res) => {
 
     // Call OpenAI API
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4.1-mini',
+      model: 'gpt-4.1',
       messages: conversation.messages,
       max_tokens: 500,
       temperature: 0.7,
