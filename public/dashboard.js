@@ -11,6 +11,8 @@ class Dashboard {
     this.searchInput = document.getElementById('searchInput');
     this.refreshBtn = document.getElementById('refreshBtn');
     this.deleteBtn = document.getElementById('deleteBtn');
+    this.analyzeBtn = document.getElementById('analyzeBtn');
+    this.analysisEl = document.getElementById('analysis');
 
     this.currentSessionId = null;
 
@@ -25,6 +27,7 @@ class Dashboard {
       else this.loadSessions();
     });
     this.deleteBtn.addEventListener('click', () => this.handleDelete());
+    if (this.analyzeBtn) this.analyzeBtn.addEventListener('click', () => this.handleAnalyze());
   }
 
   async loadSessions() {
@@ -85,6 +88,49 @@ class Dashboard {
       });
       this.sessionsEl.appendChild(li);
     });
+  }
+
+  async handleAnalyze() {
+    if (!this.currentSessionId) return;
+    this.analysisEl.style.display = 'block';
+    this.analysisEl.innerHTML = 'Đang phân tích...';
+    try {
+      const res = await fetch(`${this.apiBaseUrl}/conversation/${this.currentSessionId}/analyze`, { method: 'POST' });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Analyze failed: ${res.status} ${text.slice(0,120)}`);
+      }
+      const data = await res.json();
+      this.renderAnalysis(data.analysis);
+    } catch (e) {
+      this.analysisEl.innerHTML = 'Phân tích thất bại.';
+      console.error(e);
+    }
+  }
+
+  renderAnalysis(a) {
+    if (!a) {
+      this.analysisEl.innerHTML = 'Không có dữ liệu phân tích.';
+      return;
+    }
+    const rows = [
+      ['Tên', a.customerName],
+      ['Email', a.customerEmail],
+      ['Số điện thoại', a.customerPhone],
+      ['Ngành', a.customerIndustry],
+      ['Vấn đề/Nhu cầu', a.customerProblem],
+      ['Thời gian rảnh', a.customerAvailability],
+      ['Đã đặt lịch tư vấn', String(a.customerConsultation)],
+      ['Ghi chú', a.specialNotes],
+      ['Chất lượng lead', a.leadQuality]
+    ];
+    const html = `
+      <div style="font-weight:600;margin-bottom:8px">Kết quả phân tích</div>
+      <div style="display:grid;grid-template-columns:200px 1fr;gap:6px;">
+        ${rows.map(([k,v]) => `<div style=\"color:#6b7280\">${k}</div><div>${this.linkify(v || '')}</div>`).join('')}
+      </div>
+    `;
+    this.analysisEl.innerHTML = html;
   }
 
   async loadConversation(sessionId) {

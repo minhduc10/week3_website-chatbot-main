@@ -32,16 +32,27 @@
                     <div>
                         <button id="refreshBtn" class="btn">Refresh</button>
                         <button id="deleteBtn" class="btn" style="margin-left:8px;">Delete</button>
+                        <button id="analyzeBtn" class="btn" style="margin-left:8px;">Phân tích</button>
                     </div>
                 </div>
                 <div id="messages" class="messages"></div>
+                <div id="analysis" class="analysis" style="margin-top:12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px;display:none"></div>
             </section>
         </main>
     </div>
     <script src="dashboard.js"></script>
 </body>
 <style>
-  body { background: #f4f6fb; }
+  /* Override chat page global body styles so dashboard can scroll normally */
+  body { 
+    background: #f4f6fb !important; 
+    height: auto !important; 
+    display: block !important; 
+    align-items: unset !important; 
+    justify-content: unset !important; 
+    padding: 0 !important; 
+    overflow: auto !important;
+  }
 </style>
 </html>
 

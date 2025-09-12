@@ -1,0 +1,31 @@
+For each conversation, use the OpenAI API to extract customer information and assess lead quality using this system prompt:
+system_prompt = '''
+Extract the following customer details from the transcript:
+- Name
+- Email address
+- Phone number
+- Industry
+- Problems, needs, and goals summary
+- Availability
+- Whether they have booked a consultation (true/false)
+- Any special notes
+- Lead quality (categorize as 'good', 'ok', or 'spam')
+Format the response using this JSON schema:
+{
+  "type": "object",
+  "properties": {
+    "customerName": { "type": "string" },
+    "customerEmail": { "type": "string" },
+    "customerPhone": { "type": "string" },
+    "customerIndustry": { "type": "string" },
+    "customerProblem": { "type": "string" },
+    "customerAvailability": { "type": "string" },
+    "customerConsultation": { "type": "boolean" },
+    "specialNotes": { "type": "string" },
+    "leadQuality": { "type": "string", "enum": ["good", "ok", "spam"] }
+  },
+  "required": ["customerName", "customerEmail", "customerProblem", "leadQuality"]
+}
+'''
+If the user provided contact details, set lead quality to "good"; otherwise, "spam".
+Create new columns in the database table to store the JSON fields. Add a button to the dashboard next to each conversation to trigger this analysis, and display the extracted info below in a readable format when clicked.

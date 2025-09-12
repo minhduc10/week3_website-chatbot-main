@@ -49,6 +49,20 @@ try {
   SYSTEM_PROMPT = 'You are a helpful assistant.';
 }
 
+// Load analysis prompt for extracting customer info
+let ANALYSIS_PROMPT = '';
+try {
+  const analysisPromptPath = path.join(__dirname, 'cusor_promt.txt');
+  ANALYSIS_PROMPT = fs.readFileSync(analysisPromptPath, 'utf8').trim();
+  if (!ANALYSIS_PROMPT) {
+    console.warn('⚠️  cusor_promt.txt is empty. Using minimal analysis prompt.');
+    ANALYSIS_PROMPT = 'Return a strict JSON object with extracted customer info.';
+  }
+} catch (e) {
+  console.warn('⚠️  Unable to read cusor_promt.txt. Using fallback analysis prompt.', e.message);
+  ANALYSIS_PROMPT = 'Return a strict JSON object with extracted customer info.';
+}
+
 // Generate a unique session ID
 function generateSessionId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -171,7 +185,7 @@ app.post('/api/chat', async (req, res) => {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4.1',
       messages: conversation.messages,
-      max_tokens: 500,
+      max_tokens: 250,
       temperature: 0.7,
     });
 
@@ -276,6 +290,114 @@ app.get('/api/sessions', async (req, res) => {
     lastActivity: row.created_at
   }));
   res.json({ sessions: sessionList });
+});
+
+// Build a transcript from messages for analysis
+function buildTranscriptFromMessages(messages) {
+  const ordered = Array.isArray(messages) ? messages : [];
+  return ordered
+    .filter(m => m && typeof m.content === 'string')
+    .map(m => `${m.role.toUpperCase()}: ${m.content}`)
+    .join('\n');
+}
+
+// Save analysis back to Supabase columns (if available), and an analysis_result jsonb
+async function saveAnalysis(sessionId, analysisObject) {
+  if (!supabase) return;
+  const payload = {
+    lead_analysic: analysisObject,
+    lead_analyzed_at: new Date().toISOString()
+  };
+  const { error } = await supabase
+    .from('conversation')
+    .update(payload)
+    .eq('conversation_id', sessionId);
+  if (error) {
+    console.error('Supabase update error (lead_analysic, lead_analyzed_at):', error);
+  }
+}
+
+// Analyze conversation and store structured info
+app.post('/api/conversation/:sessionId/analyze', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    if (!supabase) {
+      return res.status(500).json({ error: 'Supabase is not configured on server' });
+    }
+
+    // Fetch conversation directly from Supabase to ensure full history
+    const { data, error } = await supabase
+      .from('conversation')
+      .select('messages')
+      .eq('conversation_id', sessionId)
+      .maybeSingle();
+    if (error) {
+      console.error('Supabase fetch conversation error:', error);
+      return res.status(500).json({ error: 'Failed to fetch conversation' });
+    }
+    const messages = data?.messages || conversations[sessionId]?.messages || [];
+    if (!messages || messages.length === 0) {
+      return res.status(404).json({ error: 'No messages to analyze' });
+    }
+
+    const transcript = buildTranscriptFromMessages(messages.filter(m => m.role !== 'system'));
+
+    // Run OpenAI analysis
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4.1',
+      messages: [
+        { role: 'system', content: ANALYSIS_PROMPT },
+        { role: 'user', content: `Here is the full conversation transcript:\n\n${transcript}` }
+      ],
+      temperature: 0.1,
+      max_tokens: 500
+    });
+
+    const content = completion.choices?.[0]?.message?.content || '';
+    let analysis;
+    try {
+      analysis = JSON.parse(content);
+    } catch (e) {
+      // Attempt to extract JSON substring if the model added text around it
+      const match = content.match(/\{[\s\S]*\}$/);
+      if (match) {
+        analysis = JSON.parse(match[0]);
+      } else {
+        return res.status(500).json({ error: 'AI did not return valid JSON', raw: content });
+      }
+    }
+
+    // Save analysis
+    await saveAnalysis(sessionId, analysis);
+
+    res.json({ sessionId, analysis });
+  } catch (e) {
+    console.error('Analyze endpoint error:', e);
+    res.status(500).json({ error: 'Failed to analyze conversation' });
+  }
+});
+
+// Get stored analysis
+app.get('/api/conversation/:sessionId/analysis', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    if (!supabase) {
+      return res.status(200).json({ sessionId, analysis: null });
+    }
+    const { data, error } = await supabase
+      .from('conversation')
+      .select('lead_analysic, lead_analyzed_at')
+      .eq('conversation_id', sessionId)
+      .maybeSingle();
+    if (error) {
+      console.error('Supabase get analysis error:', error);
+      return res.status(500).json({ error: 'Failed to get analysis' });
+    }
+    res.json({ sessionId, analysis: data?.lead_analysic || null, analyzedAt: data?.lead_analyzed_at || null });
+  } catch (e) {
+    console.error('Get analysis endpoint error:', e);
+    res.status(500).json({ error: 'Failed to get analysis' });
+  }
 });
 
 // Serve the main HTML file

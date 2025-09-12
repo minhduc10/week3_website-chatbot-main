@@ -132,10 +132,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendButton = document.getElementById('sendButton');
     messageInput.addEventListener('input', () => { sendButton.disabled = !messageInput.value.trim(); });
     const sampleQuestions = [
-        "Tôi cần hỗ trợ về sản phẩm SKF",
+        "Hỗ trợ về vòng bi SKF",
+        "Hỗ trợ về sản phẩm phớt SKF",
         "Tôi cần hỗ trợ về hộp số",
-        "Địa chỉ công ty bạn ở đâu?",
-        "What are your capabilities?"
+        "Địa chỉ công ty bạn?"
+       
     ];
     const suggestionsContainer = document.createElement('div');
     suggestionsContainer.className = 'suggestions';
