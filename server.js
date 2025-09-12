@@ -138,9 +138,41 @@ async function persistConversation(sessionId) {
 
 // API Routes
 
-// Health check endpoint
+// Health check endpoint (with Supabase diagnostics, sanitized)
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
+  let supabaseHost = null;
+  try {
+    if (process.env.SUPABASE_URL) {
+      supabaseHost = new URL(process.env.SUPABASE_URL).host;
+    }
+  } catch (_) {}
+  res.json({ 
+    status: 'OK', 
+    message: 'Server is running',
+    supabase: {
+      configured: Boolean(supabase),
+      host: supabaseHost
+    }
+  });
+});
+
+// Quick Supabase connectivity check (does not expose secrets)
+app.get('/api/debug/supabase', async (req, res) => {
+  if (!supabase) {
+    return res.status(200).json({ configured: false, ok: false, error: 'Supabase not configured on server' });
+  }
+  try {
+    const { data, error } = await supabase
+      .from('conversation')
+      .select('conversation_id')
+      .limit(1);
+    if (error) {
+      return res.status(500).json({ configured: true, ok: false, error: error.message });
+    }
+    return res.json({ configured: true, ok: true, sample: (data && data[0]) ? data[0] : null });
+  } catch (e) {
+    return res.status(500).json({ configured: true, ok: false, error: e.message });
+  }
 });
 
 // Get or create a new session
